@@ -1,0 +1,61 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - tri
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment, letting in-progress runs finish so a
+# partially-published site is never left behind.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # Need full history to determine version number.
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+      - run: npm ci
+      - name: Typecheck with TypeScript
+        run: npm run typecheck
+      # Build steps mirror deploy_gae.yml so the Pages bundle matches the
+      # spelunker app config (share button via STATE_SERVERS, custom keybinds,
+      # segment list color widget).
+      - name: Get build info
+        run: echo "BUILD_INFO={\"tag\":\"$(git describe --always --tags)\", \"url\":\"https://github.com/${{github.repository}}/commit/$(git rev-parse HEAD)\", \"timestamp\":\"$(date)\", \"branch\":\"${{github.repository}}/${{github.ref_name}}\"}" >> $GITHUB_ENV
+        shell: bash
+      - name: Build client bundles
+        run: npm run build -- --no-typecheck --no-lint --define STATE_SERVERS=$(cat config/state_servers.json | tr -d " \t\n\r") --define NEUROGLANCER_BUILD_INFO='${{ env.BUILD_INFO }}' --define NEUROGLANCER_CUSTOM_INPUT_BINDINGS=$(cat config/custom-keybinds.json | tr -d " \t\n\r") --define NEUROGLANCER_SEGMENT_LIST_COLOR_WIDGET=true
+      - name: Write build info
+        run: echo $BUILD_INFO > ./dist/client/version.json
+        shell: bash
+      - name: Remove source maps
+        run: rm -f dist/client/*.map
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: dist/client
+      - id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
