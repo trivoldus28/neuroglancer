@@ -224,7 +224,7 @@ function setLayerPosition(
   layer.setLayerPosition(chunkTransform.modelTransform, layerPosition);
 }
 
-const moveToAnnotation = (
+export const moveToAnnotation = (
   layer: UserLayer,
   annotation: Annotation,
   state: AnnotationLayerState,
@@ -243,6 +243,111 @@ const moveToAnnotation = (
   );
   setLayerPosition(layer, chunkTransform, layerPosition);
 };
+
+/**
+ * Replaces the visible segments of each segmentation layer linked to
+ * `annotationLayer` with the segments related to `annotation`.
+ *
+ * Segments that were previously visible remain selected (and therefore listed
+ * in the segmentation layer's segment list), just no longer visible, matching
+ * the behavior of the related-segment list checkbox in the selection panel.
+ */
+export function swapVisibleSegmentsForAnnotation(
+  annotationLayer: AnnotationLayerState,
+  annotation: Annotation,
+) {
+  const { relatedSegments } = annotation;
+  if (relatedSegments === undefined) return;
+  const { relationships } = annotationLayer.source;
+  const { relationshipStates } = annotationLayer.displayState;
+  // A single segmentation layer may be linked to more than one relationship;
+  // only clear its visible segments once, before adding any of them.
+  const clearedGroups = new Set<unknown>();
+  for (let i = 0, count = relationships.length; i < count; ++i) {
+    const segments = relatedSegments[i];
+    if (segments === undefined) continue;
+    const segmentationState = relationshipStates.get(relationships[i])
+      .segmentationState.value;
+    if (segmentationState == null) continue;
+    const groupState = segmentationState.segmentationGroupState.value;
+    if (!clearedGroups.has(groupState)) {
+      clearedGroups.add(groupState);
+      groupState.visibleSegments.clear();
+    }
+    groupState.visibleSegments.add(segments);
+  }
+}
+
+export type PickedAnnotationNavigationResult =
+  // No annotation was picked; the caller should fall back to its default
+  // behavior.
+  | "none"
+  // The annotation was resolved and acted upon immediately.
+  | "moved"
+  // An annotation was picked but its details are still loading (the case for
+  // precomputed sources, whose related segments live in the `by_id` index).
+  // The move and segment swap happen once it arrives; the caller should still
+  // apply its default behavior in the meantime.
+  | "pending";
+
+/**
+ * If `mouseState` is over an annotation, moves the view to that annotation and
+ * swaps the visible segments of any linked segmentation layers to the
+ * annotation's related segments.
+ *
+ * Works for both local and precomputed (multiscale) annotation sources.  For
+ * precomputed sources the annotation must first be fetched, in which case
+ * "pending" is returned and the navigation happens asynchronously.  Any
+ * pending work is cancelled when `context` is disposed.
+ */
+export function moveToPickedAnnotation(
+  mouseState: MouseSelectionState,
+  context: RefCounted,
+): PickedAnnotationNavigationResult {
+  const annotationLayer = mouseState.pickedAnnotationLayer;
+  const annotationId = mouseState.pickedAnnotationId;
+  if (annotationLayer === undefined || annotationId === undefined) {
+    return "none";
+  }
+  const layer = annotationLayer.dataSource.layer;
+  if (annotationLayer.chunkTransform.value.error !== undefined) return "none";
+  const reference = annotationLayer.source.getReference(annotationId);
+  const apply = (annotation: Annotation) => {
+    moveToAnnotation(layer, annotation, annotationLayer);
+    swapVisibleSegmentsForAnnotation(annotationLayer, annotation);
+  };
+  if (reference.value != null) {
+    try {
+      apply(reference.value);
+    } finally {
+      reference.dispose();
+    }
+    return "moved";
+  }
+  if (reference.value === null) {
+    // Annotation is known not to exist.
+    reference.dispose();
+    return "none";
+  }
+  // Still loading.  Act once it arrives, unless `context` is disposed first.
+  const cleanup = context.registerDisposer(
+    disposableOnce(() => {
+      unregisterChanged();
+      reference.dispose();
+    }),
+  );
+  const unregisterChanged = reference.changed.add(() => {
+    const annotation = reference.value;
+    // `undefined` means still loading.
+    if (annotation === undefined) return;
+    if (annotation !== null) {
+      apply(annotation);
+    }
+    context.unregisterDisposer(cleanup);
+    cleanup();
+  });
+  return "pending";
+}
 
 function visitTransformedAnnotationGeometry(
   annotation: Annotation,
