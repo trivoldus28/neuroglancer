@@ -33,6 +33,7 @@ import {
 } from "#src/rendered_data_panel_picking.js";
 import { StatusMessage } from "#src/status.js";
 import type { TrackableValue } from "#src/trackable_value.js";
+import { moveToPickedAnnotation } from "#src/ui/annotations.js";
 import { AutomaticallyFocusedElement } from "#src/util/automatic_focus.js";
 import type { Borrowed } from "#src/util/disposable.js";
 import type {
@@ -601,7 +602,22 @@ export abstract class RenderedDataPanel extends RenderedPanel {
 
     registerActionListener(element, "move-to-mouse-position", () => {
       const { mouseState } = this.viewer;
-      if (mouseState.updateUnconditionally()) {
+      if (!mouseState.updateUnconditionally()) return;
+      // If an annotation is under the mouse, additionally show it in the
+      // selection panel and swap the visible segments of any linked
+      // segmentation layers to its related segments.  The selection is
+      // captured before moving, since moving invalidates the picked values.
+      if (
+        mouseState.pickedAnnotationLayer !== undefined &&
+        mouseState.pickedAnnotationId !== undefined
+      ) {
+        this.viewer.selectionDetailsState.select();
+      }
+      const annotationResult = moveToPickedAnnotation(mouseState, this);
+      if (annotationResult !== "moved") {
+        // Either no annotation was picked, or its details are still loading,
+        // in which case move to the mouse position now and let the more
+        // precise move happen when the annotation arrives.
         this.navigationState.position.value = mouseState.position;
       }
     });
