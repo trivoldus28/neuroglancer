@@ -57,7 +57,11 @@ import {
   SELECT_NEXT_ANNOTATION_TOOL_ID,
   SELECT_PREVIOUS_ANNOTATION_TOOL_ID,
 } from "#src/layer/annotation/tool_state.js";
-import type { MouseSelectionState, UserLayer } from "#src/layer/index.js";
+import type {
+  LayerManager,
+  MouseSelectionState,
+  UserLayer,
+} from "#src/layer/index.js";
 import type { LoadedDataSubsource } from "#src/layer/layer_data_source.js";
 import type { ChunkTransformParameters } from "#src/render_coordinate_transform.js";
 import { getChunkPositionFromCombinedGlobalLocalPositions } from "#src/render_coordinate_transform.js";
@@ -276,6 +280,28 @@ export function swapVisibleSegmentsForAnnotation(
     }
     groupState.visibleSegments.add(segments);
   }
+}
+
+/**
+ * Selects the annotation `offset` positions away from the currently selected
+ * one, in the first layer that currently has an annotation selected.
+ *
+ * Returns `true` if such a layer was found.
+ */
+export function shiftSelectedAnnotationIndex(
+  layerManager: LayerManager,
+  offset: number,
+): boolean {
+  for (const managedLayer of layerManager.managedLayers) {
+    const userLayer =
+      managedLayer.layer as Partial<UserLayerWithAnnotations> | null;
+    if (userLayer == null) continue;
+    if (typeof userLayer.shiftSelectedIndexBy !== "function") continue;
+    if (userLayer.getSelectedAnnotationContext?.() === undefined) continue;
+    userLayer.shiftSelectedIndexBy(offset);
+    return true;
+  }
+  return false;
 }
 
 export type PickedAnnotationNavigationResult =
@@ -2211,6 +2237,7 @@ export function UserLayerWithAnnotationsMixin<
       const { annotation, state } = entries[targetIndex];
       this.selectAnnotation(state, annotation.id, true);
       moveToAnnotation(this, annotation, state);
+      swapVisibleSegmentsForAnnotation(state, annotation);
     }
 
     restoreState(specification: any) {
@@ -3040,6 +3067,7 @@ export function makeAnnotationListElement(
     event.stopPropagation();
     event.preventDefault();
     moveToAnnotation(layer, annotation, state);
+    swapVisibleSegmentsForAnnotation(state, annotation);
   });
   return [element, columnWidths];
 }
