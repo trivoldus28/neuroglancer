@@ -45,6 +45,9 @@ export function getDefaultGlobalBindings() {
     map.set("keyn", "add-layer");
     map.set("keyh", "help");
 
+    map.set("bracketleft", "select-previous-annotation");
+    map.set("bracketright", "select-next-annotation");
+
     map.set("space", "toggle-layout");
     map.set("shift+space", "toggle-layout-alternative");
     map.set("backslash", "toggle-show-statistics");
@@ -92,8 +95,8 @@ export function getDefaultRenderedDataPanelBindings() {
         arrowdown: "y+",
         comma: "z-",
         period: "z+",
-        bracketleft: "t-",
-        bracketright: "t+",
+        bracketleft: "select-previous-annotation",
+        bracketright: "select-next-annotation",
         keyz: "snap",
         "control+equal": "zoom-in",
         "alt+equal": "depth-range-decrease",

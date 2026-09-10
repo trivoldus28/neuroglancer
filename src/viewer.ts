@@ -83,6 +83,7 @@ import {
   observeWatchable,
   TrackableValue,
 } from "#src/trackable_value.js";
+import { shiftSelectedAnnotationIndex } from "#src/ui/annotations.js";
 import { CommandCatalog } from "#src/ui/command_catalog.js";
 import { CommandRegistry } from "#src/ui/command_registry.js";
 import {
@@ -1228,6 +1229,13 @@ export class Viewer extends RefCounted implements ViewerState {
       }
       userLayer.tool.value.trigger(this.mouseState);
     });
+
+    this.bindAction("select-previous-annotation", () =>
+      shiftSelectedAnnotationIndex(this.layerManager, -1),
+    );
+    this.bindAction("select-next-annotation", () =>
+      shiftSelectedAnnotationIndex(this.layerManager, 1),
+    );
 
     this.bindAction("toggle-axis-lines", () => this.showAxisLines.toggle());
     this.bindAction("toggle-scale-bar", () => this.showScaleBar.toggle());
