@@ -580,7 +580,9 @@ export class SliceViewPerspectiveTwoPanelLayout extends RefCounted {
           panel.sliceViews.set(sliceView.addRef(), false);
           addUnconditionalSliceViews(viewer, panel, crossSections);
           addDisplayDimensionsWidget(this, panel);
-          registerRelatedLayouts(this, panel, ["3d", "4panel-alt"]);
+          // Listed first so that `space` returns to the single slice view
+          // layout regardless of which of the two panels has the mouse.
+          registerRelatedLayouts(this, panel, [axes, "3d"]);
         }),
       ]),
     )(rootElement);
@@ -617,7 +619,7 @@ export class SinglePanelLayout extends RefCounted {
           ),
         );
         addDisplayDimensionsWidget(this, panel);
-        registerRelatedLayouts(this, panel, ["4panel-alt", `${axes}-3d`]);
+        registerRelatedLayouts(this, panel, [`${axes}-3d`, "4panel-alt"]);
       }),
     ])(rootElement);
   }
