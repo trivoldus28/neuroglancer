@@ -127,7 +127,10 @@ export class StateShare extends RefCounted {
           const stateUrlProtcol = new URL(res).protocol;
           const stateUrlWithoutProtocol = res.substring(stateUrlProtcol.length);
           const protocol = new URL(selectedStateServer).protocol;
-          return `${window.location.origin}/#!${protocol}${stateUrlWithoutProtocol}`;
+          // Keep the pathname so deployments under a subpath (e.g. GitHub
+          // Pages at /<repo>/) produce a link back to the same app rather
+          // than to the origin root.
+          return `${window.location.origin}${window.location.pathname}#!${protocol}${stateUrlWithoutProtocol}`;
         });
 
       StatusMessage.forPromise(
