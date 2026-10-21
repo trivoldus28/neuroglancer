@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+import { StatusMessage } from "#src/status.js";
 import { isInputTextTarget } from "#src/util/dom.js";
-import { getCachedJson } from "#src/util/trackable.js";
+import { formatPositionText } from "#src/util/spatial_units.js";
 import type { Viewer } from "#src/viewer.js";
 
 export function bindDefaultCopyHandler(viewer: Viewer) {
@@ -25,13 +26,17 @@ export function bindDefaultCopyHandler(viewer: Viewer) {
     }
     const selection = document.getSelection();
     if (selection !== null && selection.type === "Range") return;
-    const stateJson = getCachedJson(viewer.state).value;
+    // Copy the current position rather than the full JSON state.  Write via
+    // `event.clipboardData` instead of `copyPositionToClipboard`: the latter
+    // uses `document.execCommand("copy")`, which would re-enter this handler.
+    const { position } = viewer.navigationState;
     const { clipboardData } = event;
     if (clipboardData !== null) {
       clipboardData.setData(
         "text/plain",
-        JSON.stringify(stateJson, undefined, "  "),
+        position.valid ? formatPositionText(position.value) : "",
       );
+      StatusMessage.showTemporaryMessage("Position copied to clipboard");
     }
     event.preventDefault();
   });
